@@ -1,0 +1,10 @@
+#!/bin/bash
+#SBATCH --job-name nest_simulations_large
+#SBATCH --time 0-06:00:00
+#SBATCH -e ../logs/nest_simulations_large.txt
+#SBATCH -o ../logs/nest_simulations_large.txt
+#SBATCH --ntasks=240
+
+unset DISPLAY
+cd ..
+srun --mpi=pmi2 python run_nest_simulations.py lfp_simulations_large

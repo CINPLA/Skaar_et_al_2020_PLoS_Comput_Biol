@@ -1,0 +1,10 @@
+#!/bin/bash
+#SBATCH --job-name nest_simulations_varying_taumem
+#SBATCH --time 0-02:00:00
+#SBATCH -e ../logs/nest_simulations_varying_taumem.txt
+#SBATCH -o ../logs/nest_simulations_varying_taumem.txt
+#SBATCH --ntasks=80
+
+unset DISPLAY
+cd ..
+srun --mpi=pmi2 python run_nest_simulations.py lfp_simulations_varying_taumem
