@@ -1,9 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import os, h5py, keras
+import os, keras, h5py
 import matplotlib.gridspec as gridspec
-from helper_functions import calc_psds, read_ids_parameters, remove_zero_lfps
-
+from helper_functions import read_ids_parameters, calc_psds, remove_zero_lfps
 
 TICK_FONT_SIZE = 7
 TITLE_FONT_SIZE = 7
@@ -11,11 +10,12 @@ LABEL_FONT_SIZE = 7
 FULL_WIDTH_FIG_SIZE = 7
 HALF_WIDTH_FIG_SIZE = FULL_WIDTH_FIG_SIZE / 2
 
-RANDOM_MODEL_PATH = os.path.join('../training_scripts/save/model_full_parameterspace.h5')
-GRID_MODEL_PATH = os.path.join('../training_scripts/save/grid_model.h5')
+FULL_MODEL_PATH = os.path.join('../training_scripts/save/model_full_parameterspace.h5')
+ETA_MODEL_PATH = os.path.join('../training_scripts/save/eta_model_full_parameterspace.h5')
+G_MODEL_PATH = os.path.join('../training_scripts/save/g_model_full_parameterspace.h5')
+J_MODEL_PATH = os.path.join('../training_scripts/save/j_model_full_parameterspace.h5')
 
 DATA_DIR_LARGE = os.path.join('../simulation_code/lfp_simulations_large/')
-DATA_DIR_SMALL = os.path.join('../simulation_code/lfp_simulations_small/')
 SAVE_DIR = os.path.join('./save/')
 
 #### Load large parameterspace LFPs
@@ -43,7 +43,6 @@ psds_large, labels_large = remove_zero_lfps(psds_large, labels_large)
 
 psds_large = np.swapaxes(psds_large, 1,2)
 
-## Rescale labels
 labels_large_rescaled = labels_large - np.array([[0.8, 3.5, 0.05]])
 labels_large_rescaled /= np.array([[3.2, 4.5, 0.35]])
 
@@ -73,60 +72,70 @@ def set_up_model(x_train, lr, n_dense=128, output=3):
 
 ## Get errors
 full_model = set_up_model(psds_large, 0)
-full_model.load_weights(RANDOM_MODEL_PATH)
+full_model.load_weights(FULL_MODEL_PATH)
 preds = full_model.predict(psds_large)
-random_errors = preds - labels_large_rescaled
+full_errors = preds - labels_large_rescaled
 
-grid_model = set_up_model(psds_large, 0)
-grid_model.load_weights(GRID_MODEL_PATH)
-grid_preds = grid_model.predict(psds_large)
-grid_errors = grid_preds - labels_large_rescaled
+eta_model = set_up_model(psds_large, 0, output=1)
+eta_model.load_weights(ETA_MODEL_PATH)
+eta_preds = eta_model.predict(psds_large)
+eta_errors = eta_preds.squeeze() - labels_large_rescaled[:10000,0]
+
+g_model = set_up_model(psds_large, 0, output=1)
+g_model.load_weights(G_MODEL_PATH)
+g_preds = g_model.predict(psds_large)
+g_errors = g_preds.squeeze() - labels_large_rescaled[:10000,1]
+
+j_model = set_up_model(psds_large, 0, output=1)
+j_model.load_weights(J_MODEL_PATH)
+j_preds = j_model.predict(psds_large)
+j_errors = j_preds.squeeze() - labels_large_rescaled[:10000,2]
 
 ## Create histograms
-bins=np.linspace(-7, 7, 3000)
+bins=np.linspace(-0.7, 0.7, 300)
 x = bins[1:] - (bins[-1]-bins[-2])/2
 
-random_hist_eta, _ = np.histogram(random_errors[:,0], bins=bins)
-random_hist_eta = random_hist_eta/random_hist_eta.sum()
+full_hist_eta, _ = np.histogram(full_errors[:,0], bins=bins)
+full_hist_eta = full_hist_eta/full_hist_eta.sum()
 
-random_hist_g, _ = np.histogram(random_errors[:,1], bins=bins)
-random_hist_g = random_hist_g/random_hist_g.sum()
+full_hist_g, _ = np.histogram(full_errors[:,1], bins=bins)
+full_hist_g = full_hist_g/full_hist_g.sum()
 
-random_hist_j, _ = np.histogram(random_errors[:,2], bins=bins)
-random_hist_j = random_hist_j/random_hist_j.sum()
+full_hist_j, _ = np.histogram(full_errors[:,2], bins=bins)
+full_hist_j = full_hist_j/full_hist_j.sum()
 
-grid_hist_eta, _ = np.histogram(grid_errors[:,0], bins=bins)
-grid_hist_eta = grid_hist_eta/grid_hist_eta.sum()
+single_hist_eta, _ = np.histogram(eta_errors, bins=bins)
+single_hist_eta = single_hist_eta/single_hist_eta.sum()
 
-grid_hist_g, _ = np.histogram(grid_errors[:,1], bins=bins)
-grid_hist_g = grid_hist_g/grid_hist_g.sum()
+single_hist_g, _ = np.histogram(g_errors, bins=bins)
+single_hist_g = single_hist_g/single_hist_g.sum()
 
-grid_hist_j, _ = np.histogram(grid_errors[:,2], bins=bins)
-grid_hist_j = grid_hist_j/grid_hist_j.sum()
+single_hist_j, _ = np.histogram(j_errors, bins=bins)
+single_hist_j = single_hist_j/single_hist_j.sum()
 
 ## Create figure
 lw=2.0
 fig = plt.figure()
 fig.set_size_inches([FULL_WIDTH_FIG_SIZE, 1.8])
-gs = gridspec.GridSpec(ncols=3, nrows=1, wspace=0.3, bottom=0.3 )
+gs = gridspec.GridSpec(ncols=3, nrows=1, wspace=0.3, bottom=0.3)
 ax = [plt.subplot(gs[i]) for i in range(3)]
 
-ax[0].step(x, random_hist_eta, color='royalblue', lw=lw)
-ax[0].step(x, grid_hist_eta, color='orange', lw=lw)
-ax[0].plot([grid_errors[:,0].mean()]*2, [0,1], color='orange', lw=1.0)
-ax[0].plot([random_errors[:,0].mean()]*2, [0,1], color='royalblue', lw=1.0)
+ax[0].step(x, full_hist_eta, color='royalblue', lw=lw)
+ax[0].step(x, single_hist_eta, color='orange', lw=lw)
+ax[0].plot([eta_errors.mean()]*2, [0,1], color='orange', lw=1.0)
+ax[0].plot([full_errors[:,0].mean()]*2, [0,1], color='royalblue', lw=1.0)
 ax[0].set_title('$\eta$', fontdict={'fontsize': TITLE_FONT_SIZE})
 
-ax[1].step(x, random_hist_g, color='royalblue', lw=lw, label='randomly\nsampled')
-ax[1].step(x, grid_hist_g, color='orange', lw=lw, label='grid-\nsampled')
-ax[1].plot([grid_errors[:,1].mean()]*2, [0,1], color='orange', lw=1.0)
-ax[1].plot([random_errors[:,1].mean()]*2, [0,1], color='royalblue', lw=1.0)
+ax[1].step(x, full_hist_g, color='royalblue', lw=lw, label='combined\npredictions')
+ax[1].step(x, single_hist_g, color='orange', lw=lw, label='single\npredictions')
+ax[1].plot([g_errors.mean()]*2, [0,1], color='orange', lw=1.0)
+ax[1].plot([full_errors[:,1].mean()]*2, [0,1], color='royalblue', lw=1.0)
 ax[1].set_title('$g$', fontdict={'fontsize': TITLE_FONT_SIZE})
 
-ax[2].step(x, random_hist_j, color='royalblue', lw=lw)
-ax[2].step(x, grid_hist_j, color='orange', lw=lw)
-ax[2].plot([grid_errors[:,2].mean()]*2, [0,1], color='orange', lw=1.0)
-ax[2].plot([random_errors[:,2].mean()]*2, [0,1], color='royalblue', lw=1.0)
+ax[2].step(x, full_hist_j, color='royalblue', lw=lw)
+ax[2].step(x, single_hist_j, color='orange', lw=lw)
+ax[2].plot([j_errors.mean()]*2, [0,1], color='orange', lw=1.0)
+ax[2].plot([full_errors[:,2].mean()]*2, [0,1], color='royalblue', lw=1.0)
 ax[2].set_title('$J$', fontdict={'fontsize': TITLE_FONT_SIZE})
 
 ax[0].set_ylabel('error dist.', fontdict={'fontsize': LABEL_FONT_SIZE})
@@ -135,6 +144,7 @@ for a in ax:
     a.set_xlim(-0.1,0.1)
     a.set_ylim(0,0.3)
     a.set_xlabel('error', fontdict={'fontsize': LABEL_FONT_SIZE})
+
 
 ax[0].spines['right'].set_visible(False)
 ax[0].spines['top'].set_visible(False)
@@ -145,7 +155,6 @@ ax[2].set_yticklabels([])
 ax[2].spines['right'].set_visible(False)
 ax[2].spines['top'].set_visible(False)
 ax[1].legend(fontsize=LABEL_FONT_SIZE, bbox_to_anchor=(0.6, 0.5, 0.5, 0.5), framealpha=0)
-
-# plt.savefig(os.path.join(fig_dir, 'Fig11.pdf'))
-# plt.savefig(os.path.join(fig_dir, 'Fig11.eps'))
+# plt.savefig(os.path.join(fig_dir, 'Fig10.pdf'))
+# plt.savefig(os.path.join(fig_dir, 'Fig10.eps'))
 plt.show()
